@@ -85,7 +85,98 @@ export async function getSchema(): Promise<SchemaInfo> {
   return res.json();
 }
 
-export async function getHealth(): Promise<{ ok: boolean; mockLlm: boolean; model: string; database?: "postgresql" | "sqlite" }> {
+export interface HealthResponse {
+  ok: boolean;
+  time: string;
+  database: "postgresql" | "sqlite";
+  databaseDetail: string;
+  llmProvider: "gemini" | "openai";
+  model: string;
+  embedModel: string;
+  mockLlm: boolean;
+  mockLlmReasons: string[];
+  embeddings: "live" | "mock";
+  envFiles: { serverDotEnv: boolean; repoRootDotEnv: boolean };
+  postgresAutoSeed: boolean;
+  hints: string[];
+}
+
+export async function getHealth(): Promise<HealthResponse> {
   const res = await fetch(`${API_BASE}/health`);
+  return res.json();
+}
+
+export interface DashboardMetricsPayload {
+  windowDays: number;
+  source: "postgresql" | "sqlite";
+  kpis: {
+    totalFailures: number;
+    avgFailuresPerDay: number;
+    mostAffectedCity: string;
+    mostAffectedCityCount: number;
+    mostAffectedCityPct: number;
+    mttrHours: number;
+    trendVsPreviousPct: number;
+    hardwareFailuresInWindow: number;
+  };
+  karachiHardwareTrend: {
+    columns: string[];
+    rows: unknown[][];
+    rowCount: number;
+  };
+  recentFailures: {
+    columns: string[];
+    rows: unknown[][];
+    rowCount: number;
+  };
+  loadedAt: string;
+}
+
+export async function getDashboardMetrics(): Promise<DashboardMetricsPayload> {
+  const res = await fetch(`${API_BASE}/metrics/dashboard`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Metrics failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+function getAuthToken(): string {
+  try {
+    const raw = localStorage.getItem("ai-copilot-auth");
+    if (!raw) return "";
+    const parsed = JSON.parse(raw);
+    // Zustand persist stores state under the 'state' key
+    return parsed?.state?.token ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function fetchConversations() {
+  const res = await fetch(`${API_BASE}/conversations`, {
+    headers: { Authorization: `Bearer ${getAuthToken()}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function saveConversation(conv: any) {
+  const res = await fetch(`${API_BASE}/conversations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(conv),
+  });
+  return res.json();
+}
+
+export async function removeConversation(id: string) {
+  const res = await fetch(`${API_BASE}/conversations/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${getAuthToken()}` },
+  });
   return res.json();
 }

@@ -68,3 +68,27 @@ CREATE INDEX IF NOT EXISTS idx_tx_occurred_at     ON transactions(occurred_at);
 CREATE INDEX IF NOT EXISTS idx_tx_account         ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_atms_branch        ON atms(branch_id);
 CREATE INDEX IF NOT EXISTS idx_failures_atm       ON atm_failures(atm_id);
+
+CREATE TABLE IF NOT EXISTS app_conversations (
+  id TEXT PRIMARY KEY,
+  user_email TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  messages_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_users (
+  id SERIAL PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  avatar TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS app_sessions (
+  token TEXT PRIMARY KEY,
+  user_email TEXT NOT NULL REFERENCES app_users(email) ON DELETE CASCADE,
+  expires_at BIGINT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

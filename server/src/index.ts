@@ -8,13 +8,18 @@ import { initClassifier } from "./ml/queryClassifier.js";
 import healthRouter from "./routes/health.js";
 import schemaRouter from "./routes/schema.js";
 import queryRouter from "./routes/query.js";
-import { MOCK_LLM, MODEL } from "./llm/openai.js";
+import metricsRouter from "./routes/metrics.js";
+import conversationsRouter from "./routes/conversations.js";
+import authRouter from "./routes/auth.js";
+import { MOCK_LLM, MODEL, llmProvider, embeddingsMode } from "./llm/openai.js";
 
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
 
 async function main() {
   console.log("[boot] Starting AI Data Copilot server...");
-  console.log(`[boot] LLM: ${MOCK_LLM ? "MOCK (set MOCK_LLM=false + OPENAI_API_KEY for real)" : `OpenAI ${MODEL}`}`);
+  console.log(
+    `[boot] LLM: ${MOCK_LLM ? "MOCK — set MOCK_LLM=false and a real GEMINI_API_KEY or OPENAI_API_KEY" : `${llmProvider()} / ${MODEL}`} | embeddings: ${embeddingsMode()}`,
+  );
 
   await initConnection();
   console.log(
@@ -30,7 +35,10 @@ async function main() {
 
   app.use("/api/health", healthRouter);
   app.use("/api/schema", schemaRouter);
+  app.use("/api/metrics", metricsRouter);
   app.use("/api/query", queryRouter);
+  app.use("/api/conversations", conversationsRouter);
+  app.use("/api/auth", authRouter);
 
   app.listen(PORT, () => {
     console.log(`[boot] Listening on http://localhost:${PORT}`);

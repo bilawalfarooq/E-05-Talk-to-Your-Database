@@ -18,7 +18,11 @@ function isLikelyDate(value: unknown): boolean {
 }
 
 function isNumber(value: unknown): boolean {
-  return typeof value === "number" && Number.isFinite(value);
+  if (typeof value === "number" && Number.isFinite(value)) return true;
+  if (typeof value === "string") {
+    return /^-?\d+(\.\d+)?$/.test(value);
+  }
+  return false;
 }
 
 const DISTRIBUTION_HINTS = /^(reason|category|segment|type|status|channel|model|region)$/i;

@@ -5,15 +5,16 @@ export default {
     extend: {
       colors: {
         ink: {
-          900: "#0b0f19",
-          800: "#111827",
-          700: "#1f2937",
-          600: "#374151",
+          950: "#05060b", // Deeper background
+          900: "#0d0e1b", // Card background
+          800: "#1e2030", // Borders
+          700: "#2d304d", 
+          600: "#3d4166",
         },
-        accent: {
-          500: "#6366f1",
-          600: "#4f46e5",
-          400: "#818cf8",
+        brand: {
+          primary: "#7c3aed", // Violet-600
+          secondary: "#4f46e5", // Indigo-600
+          glow: "rgba(124, 58, 237, 0.35)",
         },
         good: { 500: "#10b981" },
         warn: { 500: "#f59e0b" },
@@ -23,6 +24,9 @@ export default {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
+      backgroundImage: {
+        'gradient-brand': 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+      }
     },
   },
   plugins: [],

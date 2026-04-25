@@ -88,6 +88,20 @@ async function connectPostgres(): Promise<void> {
     }
   }
   console.log("[db] PostgreSQL / Neon: schema ready.");
+  // Migrations: add columns/tables if not present
+  try {
+    await pool.query(`ALTER TABLE app_conversations ADD COLUMN IF NOT EXISTS user_email TEXT NOT NULL DEFAULT ''`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_sessions (
+        token TEXT PRIMARY KEY,
+        user_email TEXT NOT NULL REFERENCES app_users(email) ON DELETE CASCADE,
+        expires_at BIGINT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch (e) {
+    // Ignore migration errors
+  }
 }
 
 export const DB_FILE_PATH = DB_PATH;
@@ -101,16 +115,46 @@ export async function initConnection(): Promise<void> {
     const { seedPostgres } = await import("./seedPostgres.js");
     const r = await getPostgresPool().query("SELECT count(*)::int AS c FROM transactions");
     const c = Number((r.rows[0] as { c: string | number }).c);
+    const autoSeed = process.env.POSTGRES_AUTO_SEED === "true";
     if (c === 0) {
-      console.log("[db] Neon: empty data — running seeder…");
-      await seedPostgres({ force: false });
+      if (autoSeed) {
+        console.log("[db] Neon: empty data — POSTGRES_AUTO_SEED=true — running seeder…");
+        await seedPostgres({ force: false });
+      } else {
+        console.warn(
+          "[db] Neon: database is empty (0 transactions). Synthetic seed skipped.\n" +
+            "  • Hackathon demo: set POSTGRES_AUTO_SEED=true in server/.env and restart, or run: npm run seed\n" +
+            "  • Production: load your own data first; then the app will not overwrite it.",
+        );
+      }
     } else {
       console.log(`[db] Neon: already has ${c} transactions — skipping seeder.`);
     }
+    const { seedUsers } = await import("./seedUsers.js");
+    await seedUsers();
   } else {
     connectSqlite();
+    // Migrations: add columns/tables if not present
+    try {
+      const db = getSqlite();
+      db.exec("ALTER TABLE app_conversations ADD COLUMN user_email TEXT NOT NULL DEFAULT ''");
+    } catch (e) {}
+    try {
+      const db = getSqlite();
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS app_sessions (
+          token TEXT PRIMARY KEY,
+          user_email TEXT NOT NULL REFERENCES app_users(email) ON DELETE CASCADE,
+          expires_at INTEGER NOT NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    } catch (e) {}
+
     const { seed } = await import("./seed.js");
     seed();
+    const { seedUsers } = await import("./seedUsers.js");
+    await seedUsers();
   }
   initDone = true;
 }

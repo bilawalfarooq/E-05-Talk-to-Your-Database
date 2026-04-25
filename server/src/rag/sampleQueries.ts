@@ -14,6 +14,30 @@ export function getActiveSampleSql(s: SampleQuery): string {
 
 export const SAMPLE_QUERIES: SampleQuery[] = [
   {
+    question: "Daily ATM Hardware failures trend in Karachi last 90 days",
+    tables: ["atm_failures", "atms", "branches"],
+    sql: `SELECT date(f.failed_at) AS day, COUNT(*) AS failures
+FROM atm_failures f
+JOIN atms a ON a.id = f.atm_id
+JOIN branches b ON b.id = a.branch_id
+WHERE b.city = 'Karachi'
+  AND f.reason = 'Hardware'
+  AND f.failed_at >= date('now', '-90 day')
+GROUP BY date(f.failed_at)
+ORDER BY day
+LIMIT 1000`,
+    sqlPostgres: `SELECT (f.failed_at AT TIME ZONE 'UTC')::date AS day, COUNT(*) AS failures
+FROM atm_failures f
+JOIN atms a ON a.id = f.atm_id
+JOIN branches b ON b.id = a.branch_id
+WHERE b.city = 'Karachi'
+  AND f.reason = 'Hardware'
+  AND f.failed_at >= NOW() - INTERVAL '90 days'
+GROUP BY 1
+ORDER BY day
+LIMIT 1000`,
+  },
+  {
     question: "ATM failures trend in last 90 days",
     tables: ["atm_failures"],
     sql: `SELECT date(failed_at) AS day, COUNT(*) AS failures

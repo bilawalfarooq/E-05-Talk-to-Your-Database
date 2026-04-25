@@ -34,7 +34,8 @@ export const SCHEMA_DOCS: SchemaDoc[] = [
   },
   {
     table: "atm_failures",
-    description: "Records of ATM failures with reason and time-to-resolve. Reasons: Cash Out, Network, Hardware, Software, Power.",
+    description:
+      "Records of ATM failures with reason and time-to-resolve. Reasons: Cash Out, Network, Hardware, Software, Power. Filter reason = 'Hardware' for hardware-only analytics; join atms and branches to filter by city (e.g. Karachi).",
     columns: [
       { name: "id", type: "INTEGER", description: "Primary key" },
       { name: "atm_id", type: "INTEGER", description: "FK -> atms.id" },

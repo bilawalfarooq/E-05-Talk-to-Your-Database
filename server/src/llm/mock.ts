@@ -271,17 +271,17 @@ export function genericMock(query: string): MockResponse {
       summary: `Best-effort interpretation of: "${query}"`,
     },
     sql: {
-      sql: `SELECT 'Mock-LLM is enabled. Set MOCK_LLM=false and provide OPENAI_API_KEY to run real queries.' AS message LIMIT 1`,
+      sql: `SELECT 'Mock-LLM is enabled. Set MOCK_LLM=false and provide GEMINI_API_KEY or OPENAI_API_KEY to run real queries.' AS message LIMIT 1`,
       explanation: "Mock LLM is enabled — no LLM call was made.",
     },
     judge: { label: "safe", confidence: 0.5, reason: "Mock response." },
     explanation: {
-      insight: "Mock-LLM response. Configure OPENAI_API_KEY and set MOCK_LLM=false to use the real pipeline.",
+      insight: "Mock-LLM response. Configure GEMINI_API_KEY or OPENAI_API_KEY and set MOCK_LLM=false to use the real pipeline.",
       keyNumbers: [],
     },
     recommendation: {
-      recommendation: "Add OPENAI_API_KEY in server/.env and restart, or rely on mock responses for the seeded demo queries.",
-      action: "Set OPENAI_API_KEY",
+      recommendation: "Add GEMINI_API_KEY or OPENAI_API_KEY in server/.env and restart, or rely on mock responses for the seeded demo queries.",
+      action: "Set API key",
     },
   };
 }

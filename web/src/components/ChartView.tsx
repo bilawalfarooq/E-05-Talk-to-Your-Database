@@ -1,12 +1,22 @@
 import { useMemo, useState } from "react";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import { HelpCircle } from "lucide-react";
 import type { ChartSpec, QueryResponse } from "../api/client";
 
-const PIE_COLORS = ["#6366f1", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
+const PIE_COLORS = ["#7c3aed", "#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
 
 interface Props {
   data: NonNullable<QueryResponse["data"]>;
@@ -24,123 +34,103 @@ export function ChartView({ data, chart }: Props) {
     });
   }, [data]);
 
+  const isManyBars = records.length > 15;
+  const dynamicBarSize = Math.max(8, Math.min(40, Math.floor(900 / Math.max(records.length, 1))));
+  const xAxisProps = isManyBars
+    ? { angle: -45 as const, textAnchor: "end" as const, interval: 0, tick: { fontSize: 9, fill: "#94a3b8" }, height: 80 }
+    : { dy: 12, tick: { fontSize: 11, fill: "#94a3b8" } };
+
   if (chart.type === "table" || !chart.x || !chart.y) {
     return (
-      <div className="space-y-3">
-        <ChartHeader chart={chart} showReason={showReason} setShowReason={setShowReason} />
-        <DataTable data={data} />
+      <div className="py-12 text-center text-gray-500 italic text-sm">
+        Tabular data requested. See results table below.
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       <ChartHeader chart={chart} showReason={showReason} setShowReason={setShowReason} />
-      <div className="h-72 w-full">
+      <div className="h-96 w-full">
         <ResponsiveContainer width="100%" height="100%">
           {chart.type === "line" ? (
-            <LineChart data={records} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey={chart.x} stroke="#9ca3af" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend />
-              <Line type="monotone" dataKey={chart.y} stroke="#818cf8" strokeWidth={2} dot={{ r: 2 }} />
-            </LineChart>
+            <AreaChart data={records} margin={{ top: 10, right: 20, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorFailures" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.38}/>
+                  <stop offset="55%" stopColor="#7c3aed" stopOpacity={0.16}/>
+                  <stop offset="95%" stopColor="#7c3aed" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 8" stroke="rgba(148,163,184,0.12)" vertical={false} />
+              <XAxis dataKey={chart.x} stroke="#64748b" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} dy={12} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: "#22d3ee", strokeDasharray: "4 4", strokeOpacity: 0.45 }} />
+              <Area
+                type="monotone"
+                dataKey={chart.y}
+                stroke="#22d3ee"
+                strokeWidth={3}
+                fillOpacity={1}
+                fill="url(#colorFailures)"
+                activeDot={{ r: 7, fill: "#22d3ee", stroke: "#ffffff", strokeWidth: 2 }}
+                dot={{ r: 3, fill: "#7c3aed", stroke: "#22d3ee", strokeWidth: 1 }}
+              />
+            </AreaChart>
           ) : chart.type === "bar" ? (
-            <BarChart data={records} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey={chart.x} stroke="#9ca3af" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={60} />
-              <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }} />
+          <BarChart data={records} margin={{ top: 10, right: 10, left: -20, bottom: isManyBars ? 60 : 0 }}>
+              <CartesianGrid strokeDasharray="3 8" stroke="rgba(148,163,184,0.12)" vertical={false} />
+              <XAxis dataKey={chart.x} stroke="#64748b" tickLine={false} axisLine={false} {...xAxisProps} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Legend />
-              <Bar dataKey={chart.y} fill="#6366f1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey={chart.y} fill="#22d3ee" radius={[6, 6, 0, 0]} barSize={dynamicBarSize} />
             </BarChart>
           ) : (
             <PieChart>
               <Tooltip contentStyle={tooltipStyle} />
-              <Legend />
-              <Pie data={records} dataKey={chart.y} nameKey={chart.x} outerRadius={100} label>
+              <Pie data={records} dataKey={chart.y} nameKey={chart.x} outerRadius={100} innerRadius={60} paddingAngle={5}>
                 {records.map((_, i) => (
-                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="none" />
                 ))}
               </Pie>
             </PieChart>
           )}
         </ResponsiveContainer>
       </div>
-      <DataTable data={data} compact />
     </div>
   );
 }
 
 const tooltipStyle = {
-  background: "#0b0f19",
-  border: "1px solid #1f2937",
-  borderRadius: 8,
+  background: "rgba(8, 10, 24, 0.92)",
+  border: "1px solid rgba(34, 211, 238, 0.28)",
+  borderRadius: 16,
   fontSize: 12,
   color: "#e5e7eb",
+  boxShadow: "0 18px 50px rgba(0, 0, 0, 0.34), 0 0 24px rgba(34, 211, 238, 0.12)",
 };
 
 function ChartHeader({
   chart, showReason, setShowReason,
 }: { chart: ChartSpec; showReason: boolean; setShowReason: (v: boolean) => void }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-400">
-        <span>Chart</span>
-        <span className="rounded-md bg-accent-500/15 text-accent-400 px-2 py-0.5 font-mono">{chart.type}</span>
+    <div className="relative flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="px-3 py-1 rounded-full bg-purple-300/10 border border-purple-300/20 text-[10px] font-bold text-purple-100 uppercase tracking-[0.22em]">
+          {chart.type}
+        </div>
       </div>
       <button
         onClick={() => setShowReason(!showReason)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-accent-400 transition"
-        title="Why this chart?"
+        className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] font-bold text-gray-500 hover:text-cyan-200 transition"
       >
-        <HelpCircle size={14} />
-        Why this chart?
+        <HelpCircle size={12} /> Why this chart?
       </button>
       {showReason && (
-        <div className="absolute right-6 mt-10 max-w-sm rounded-lg border border-accent-500/30 bg-ink-800 p-3 text-xs text-gray-300 shadow-lg z-10">
+        <div className="absolute right-0 top-8 max-w-sm rounded-2xl border border-cyan-300/20 bg-ink-900/95 p-4 text-xs text-gray-300 shadow-2xl z-50 backdrop-blur-xl">
           {chart.reason}
         </div>
       )}
     </div>
   );
-}
-
-function DataTable({ data, compact = false }: { data: NonNullable<QueryResponse["data"]>; compact?: boolean }) {
-  if (data.rowCount === 0) return <div className="text-sm text-gray-500 italic">No rows.</div>;
-  const limit = compact ? 8 : 50;
-  const visible = data.rows.slice(0, limit);
-  return (
-    <div className="overflow-x-auto rounded-xl border border-ink-700 bg-ink-800/40">
-      <table className="min-w-full text-sm">
-        <thead className="bg-ink-700/60 text-gray-400 text-xs uppercase">
-          <tr>{data.columns.map((c) => <th key={c} className="px-3 py-2 text-left font-medium">{c}</th>)}</tr>
-        </thead>
-        <tbody>
-          {visible.map((row, i) => (
-            <tr key={i} className="border-t border-ink-700/60 hover:bg-ink-700/30">
-              {row.map((cell, j) => (
-                <td key={j} className="px-3 py-2 font-mono text-xs text-gray-200">
-                  {formatCell(cell)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {data.rowCount > limit && (
-        <div className="px-3 py-2 text-xs text-gray-500 border-t border-ink-700/60">
-          Showing {limit} of {data.rowCount} rows
-        </div>
-      )}
-    </div>
-  );
-}
-
-function formatCell(v: unknown): string {
-  if (v === null || v === undefined) return "—";
-  if (typeof v === "number") return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
-  return String(v);
 }
