@@ -1,7 +1,7 @@
 import { embedMany } from "../llm/openai.js";
 import { InMemoryVectorStore } from "./vectorStore.js";
 import { SCHEMA_DOCS } from "./schemaDocs.js";
-import { SAMPLE_QUERIES } from "./sampleQueries.js";
+import { SAMPLE_QUERIES, getActiveSampleSql } from "./sampleQueries.js";
 
 export type SchemaMeta =
   | { kind: "table"; table: string; sampleQuestions: string[] }
@@ -39,7 +39,7 @@ export async function initSchemaIndex(): Promise<void> {
         id: `sample:${i}`,
         text: sampleTexts[i],
         vector: vectors[SCHEMA_DOCS.length + i],
-        meta: { kind: "sample", table: s.tables, sql: s.sql },
+        meta: { kind: "sample", table: s.tables, sql: getActiveSampleSql(s) },
       });
     });
 

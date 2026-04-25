@@ -1,3 +1,5 @@
+import { isPostgres } from "../db/dialect.js";
+
 export interface GuardCheckResult {
   ok: boolean;
   rewrittenSql: string;
@@ -11,7 +13,8 @@ const FORBIDDEN_KEYWORDS = [
   "VACUUM", "REINDEX", "GRANT", "REVOKE",
 ];
 
-const FORBIDDEN_TABLES = ["sqlite_master", "sqlite_sequence", "sqlite_temp_master", "sqlite_schema"];
+const FORBIDDEN_TABLES_SQLITE = ["sqlite_master", "sqlite_sequence", "sqlite_temp_master", "sqlite_schema"];
+const FORBIDDEN_TABLES_PG = ["pg_catalog", "information_schema"];
 
 const MAX_LIMIT = 1000;
 
@@ -39,7 +42,10 @@ export function sqlGuard(sql: string): GuardCheckResult {
     return { ok: false, rewrittenSql: trimmed, checks, blockedReason: `Forbidden keyword: ${forbiddenHit}` };
   }
 
-  const tableHit = FORBIDDEN_TABLES.find((t) => new RegExp(`\\b${t}\\b`, "i").test(trimmed));
+  const forbiddenTables = isPostgres()
+    ? [...FORBIDDEN_TABLES_SQLITE, ...FORBIDDEN_TABLES_PG]
+    : FORBIDDEN_TABLES_SQLITE;
+  const tableHit = forbiddenTables.find((t) => new RegExp(`\\b${t.replace(".", "\\.")}\\b`, "i").test(trimmed));
   checks.push({ name: "no_system_tables", passed: !tableHit, detail: tableHit ? `System table referenced: ${tableHit}` : undefined });
   if (tableHit) {
     return { ok: false, rewrittenSql: trimmed, checks, blockedReason: `System table not allowed: ${tableHit}` };

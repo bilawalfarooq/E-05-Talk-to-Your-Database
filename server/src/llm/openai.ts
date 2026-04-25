@@ -1,16 +1,12 @@
-import OpenAI from "openai";
+import { isPostgres } from "../db/dialect.js";
 
 const apiKey = process.env.OPENAI_API_KEY ?? "";
 export const MOCK_LLM = process.env.MOCK_LLM === "true" || !apiKey || apiKey.startsWith("sk-your-key");
 
-export const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-export const EMBED_MODEL = process.env.OPENAI_EMBED_MODEL ?? "text-embedding-3-small";
-
-let client: OpenAI | null = null;
-function getClient(): OpenAI {
-  if (!client) client = new OpenAI({ apiKey });
-  return client;
-}
+const rawModel = process.env.OPENAI_MODEL ?? "gemini-1.5-flash";
+export const MODEL = rawModel;
+const isGemini = MODEL.includes("gemini-");
+export const EMBED_MODEL = process.env.OPENAI_EMBED_MODEL ?? (isGemini ? "text-embedding-004" : "text-embedding-3-small");
 
 export interface ChatJsonOptions<T> {
   system: string;
@@ -20,62 +16,115 @@ export interface ChatJsonOptions<T> {
   temperature?: number;
 }
 
+/** 
+ * Calls Gemini REST API natively for maximum compatibility and free tier access.
+ */
+async function callGeminiRest(method: string, body: any): Promise<any> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:${method}?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Gemini API error (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
 export async function chatJson<T>(opts: ChatJsonOptions<T>): Promise<T> {
   if (MOCK_LLM) return opts.fallback;
+  if (!isGemini) {
+    const { default: OpenAI } = await import("openai");
+    const client = new OpenAI({ apiKey });
+    try {
+      const completion = await client.chat.completions.create({
+        model: MODEL,
+        temperature: opts.temperature ?? 0.1,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: opts.system + (opts.schemaHint ? `\n\nReturn JSON matching this shape: ${opts.schemaHint}` : "") },
+          { role: "user", content: opts.user },
+        ],
+      });
+      return JSON.parse(completion.choices[0]?.message?.content ?? "{}") as T;
+    } catch (err) {
+      console.error("[llm] OpenAI chatJson failed:", (err as Error).message);
+      return opts.fallback;
+    }
+  }
+
   try {
-    const completion = await getClient().chat.completions.create({
-      model: MODEL,
-      temperature: opts.temperature ?? 0.1,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: opts.system + (opts.schemaHint ? `\n\nReturn JSON matching this shape: ${opts.schemaHint}` : "") },
-        { role: "user", content: opts.user },
-      ],
+    const prompt = `${opts.system}\n\n${opts.user}\n\nSTRICT: Return ONLY a valid JSON object matching this schema: ${opts.schemaHint ?? "JSON"}. No extra text or markdown.`;
+    const data = await callGeminiRest("generateContent", {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: opts.temperature ?? 0.1,
+      },
     });
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    return JSON.parse(raw) as T;
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    const cleaned = raw.replace(/```json\s?|```/g, "").trim();
+    return JSON.parse(cleaned) as T;
   } catch (err) {
-    console.error("[llm] chatJson failed, using fallback:", (err as Error).message);
+    console.error("[llm] Gemini chatJson failed:", (err as Error).message);
     return opts.fallback;
   }
 }
 
 export async function chatText(opts: { system: string; user: string; fallback: string; temperature?: number }): Promise<string> {
   if (MOCK_LLM) return opts.fallback;
+  if (!isGemini) {
+    const { default: OpenAI } = await import("openai");
+    const client = new OpenAI({ apiKey });
+    try {
+      const completion = await client.chat.completions.create({
+        model: MODEL,
+        temperature: opts.temperature ?? 0.3,
+        messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.user }],
+      });
+      return completion.choices[0]?.message?.content?.trim() ?? opts.fallback;
+    } catch (err) {
+      return opts.fallback;
+    }
+  }
+
   try {
-    const completion = await getClient().chat.completions.create({
-      model: MODEL,
-      temperature: opts.temperature ?? 0.3,
-      messages: [
-        { role: "system", content: opts.system },
-        { role: "user", content: opts.user },
-      ],
+    const prompt = `${opts.system}\n\n${opts.user}`;
+    const data = await callGeminiRest("generateContent", {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: opts.temperature ?? 0.3 },
     });
-    return completion.choices[0]?.message?.content?.trim() ?? opts.fallback;
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? opts.fallback;
   } catch (err) {
-    console.error("[llm] chatText failed, using fallback:", (err as Error).message);
     return opts.fallback;
   }
 }
 
 export async function embed(text: string): Promise<number[]> {
-  if (MOCK_LLM) return mockEmbed(text);
+  const isGemini = MODEL.includes("gemini-");
+  if (MOCK_LLM || isGemini) return mockEmbed(text);
+  
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey });
   try {
-    const res = await getClient().embeddings.create({ model: EMBED_MODEL, input: text });
+    const res = await client.embeddings.create({ model: EMBED_MODEL, input: text });
     return res.data[0]!.embedding;
   } catch (err) {
-    console.error("[llm] embed failed, using mock:", (err as Error).message);
     return mockEmbed(text);
   }
 }
 
 export async function embedMany(texts: string[]): Promise<number[][]> {
-  if (MOCK_LLM) return texts.map(mockEmbed);
+  const isGemini = MODEL.includes("gemini-");
+  if (MOCK_LLM || isGemini) return texts.map(mockEmbed);
+
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey });
   try {
-    const res = await getClient().embeddings.create({ model: EMBED_MODEL, input: texts });
+    const res = await client.embeddings.create({ model: EMBED_MODEL, input: texts });
     return res.data.map((d) => d.embedding);
   } catch (err) {
-    console.error("[llm] embedMany failed, using mock:", (err as Error).message);
     return texts.map(mockEmbed);
   }
 }
